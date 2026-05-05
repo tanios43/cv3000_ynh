@@ -1,6 +1,5 @@
 /**
  * CV-3000 Web Interface — app.js
- * Orchestre l'UI : connexion, affichage mesures, historique, envoi RX.
  */
 import {
   CV3000Serial,
@@ -8,10 +7,9 @@ import {
   buildRmStd1Frame,
 } from './serial.js';
 
-// ── Préfixe URL (ex: /cv3000) injecté par Flask dans le HTML ──
 const PREFIX = document.querySelector('meta[name="app-prefix"]')?.content || '';
 
-// ── Parseur RX côté UI (saisie manuelle) ─────────────────────
+// ── Parseur RX ────────────────────────────────────────────────
 function parseRxString(text) {
   text = text.trim().replace(/,/g, '.').replace(/°|deg/g, '');
   const eyePat =
@@ -22,27 +20,24 @@ function parseRxString(text) {
       '\\s+([+-]?\\d+\\.?\\d*)\\s+(\\d{1,3})' +
     ')?' +
     '(?:\\s*[Aa]dd\\s*([+-]?\\d+\\.?\\d*))?';
-
   const re = new RegExp('^\\s*' + eyePat + '\\s*/\\s*' + eyePat + '\\s*$');
   const m = text.match(re);
   if (!m) throw new Error(
     'Format non reconnu.\nExemples :\n  -2.25(-0.75)180 / -1.75(-1.00)10\n  -1 -1.50 90 / +0.5 -0.75 30\n  -1.25 / -0.75'
   );
-
   const buildEye = (sphS, cylPar, axPar, cylSpc, axSpc, addS) => {
     const sph = parseFloat(sphS);
     let cyl = null, ax = null;
-    if (cylPar != null) { cyl = parseFloat(cylPar); ax = parseInt(axPar, 10); }
+    if (cylPar != null)      { cyl = parseFloat(cylPar); ax = parseInt(axPar, 10); }
     else if (cylSpc != null) { cyl = parseFloat(cylSpc); ax = parseInt(axSpc, 10); }
     const add = addS != null ? parseFloat(addS) : null;
     if (cyl != null && (ax < 0 || ax > 180))
       throw new Error(`Axe hors limites (${ax}°) — doit être entre 0 et 180`);
     return { sph, cyl, ax, add, pd: null };
   };
-
   return {
-    od: buildEye(m[1], m[2], m[3], m[4], m[5], m[6]),
-    os: buildEye(m[7], m[8], m[9], m[10], m[11], m[12]),
+    od: buildEye(m[1],  m[2],  m[3],  m[4],  m[5],  m[6]),
+    os: buildEye(m[7],  m[8],  m[9],  m[10], m[11], m[12]),
   };
 }
 
@@ -54,6 +49,7 @@ let currentData     = null;
 let history         = [];
 let selectedHistIdx = -1;
 let baudRate        = 2400;
+let currentUser     = 'anonymous';
 
 const serial = new CV3000Serial({
   onMeasurement: handleMeasurement,
@@ -66,35 +62,49 @@ const serial = new CV3000Serial({
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   checkWebSerialSupport();
-  loadHistory();
+  await loadUser();
+  await loadHistory();
   bindAll();
 });
 
 function checkWebSerialSupport() {
   if (!('serial' in navigator)) {
     showBanner(
-      '⚠ Web Serial API non disponible dans ce navigateur. ' +
-      'Utilisez Chrome ou Edge version ≥ 89.',
+      '⚠ Web Serial API non disponible. Utilisez Chrome ou Edge ≥ 89.',
       'warn'
     );
     document.getElementById('btn-connect').disabled = true;
   }
 }
 
+async function loadUser() {
+  try {
+    const r = await fetch(PREFIX + '/api/me').then(r => r.json());
+    currentUser = r.user || 'anonymous';
+    // Afficher dans le header
+    const el = document.getElementById('user-badge');
+    if (el) {
+      el.textContent = currentUser === 'anonymous' ? '👤 Non connecté' : `👤 ${currentUser}`;
+      el.className   = currentUser === 'anonymous' ? 'user-badge user-anon' : 'user-badge user-logged';
+    }
+    // Afficher dans l'historique
+    const hl = document.getElementById('hist-user-label');
+    if (hl) hl.textContent = `Historique de ${currentUser}`;
+  } catch {}
+}
+
 
 // ═══════════════════════════════════════════════════════════
-// CONNEXION
+// CONNEXION SÉRIE
 // ═══════════════════════════════════════════════════════════
 async function toggleConnection() {
   if (serial.isConnected) {
     await serial.disconnect();
   } else {
     baudRate = parseInt(document.getElementById('baud-select').value, 10) || 2400;
-    try {
-      await serial.connect(baudRate);
-    } catch {}
+    try { await serial.connect(baudRate); } catch {}
   }
 }
 
@@ -102,12 +112,10 @@ function updateConnectionState(connected) {
   const btn   = document.getElementById('btn-connect');
   const badge = document.getElementById('status-badge');
   const dot   = document.getElementById('status-dot');
-
   btn.textContent       = connected ? 'Déconnecter' : 'Connecter le port série';
   btn.dataset.connected = connected ? '1' : '';
-
-  badge.textContent = connected ? `Connecté · ${baudRate} bauds` : 'Déconnecté';
-  dot.className = 'status-dot ' + (connected ? 'dot-on' : 'dot-off');
+  badge.textContent     = connected ? `Connecté · ${baudRate} bauds` : 'Déconnecté';
+  dot.className         = 'status-dot ' + (connected ? 'dot-on' : 'dot-off');
 }
 
 
@@ -141,10 +149,7 @@ function renderEyes(od, os) {
 }
 
 function fillEye(prefix, eye) {
-  const set = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val ?? '—';
-  };
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
   if (!eye || eye.sph == null) {
     ['sph','cyl','ax','add','pd'].forEach(f => set(`${prefix}-${f}`, null));
     return;
@@ -196,12 +201,10 @@ async function loadHistory() {
 function renderHistory() {
   const ul = document.getElementById('history-list');
   ul.innerHTML = '';
-
   if (!history.length) {
     ul.innerHTML = '<li class="hist-empty">Aucune mesure enregistrée</li>';
     return;
   }
-
   [...history].reverse().forEach((m, revIdx) => {
     const realIdx = history.length - 1 - revIdx;
     const od  = m.OD ?? {};
@@ -229,8 +232,7 @@ function selectHistory(idx) {
   const m = history[idx];
   currentData = m;
   renderEyes(m.OD ?? null, m.OS ?? null);
-  document.getElementById('ts-label').textContent =
-    `Historique : ${m.timestamp ?? ''}`;
+  document.getElementById('ts-label').textContent = `Historique : ${m.timestamp ?? ''}`;
   renderHistory();
 }
 
@@ -289,7 +291,6 @@ async function sendToCV3000() {
   const txt = document.getElementById('rx-input').value.trim();
   const statusEl = document.getElementById('send-status');
   if (!txt) { toast('Saisissez une prescription'); return; }
-
   let od, os;
   try {
     ({ od, os } = parseRxString(txt));
@@ -299,12 +300,7 @@ async function sendToCV3000() {
     setTimeout(() => statusEl.textContent = '', 4000);
     return;
   }
-
-  if (!serial.isConnected) {
-    toast('Connectez d\'abord le port série', 'warn');
-    return;
-  }
-
+  if (!serial.isConnected) { toast('Connectez d\'abord le port série', 'warn'); return; }
   try {
     await serial.send(buildRmStd1Frame(od, os));
     statusEl.textContent = '✓ Données envoyées !';
@@ -343,10 +339,6 @@ function log(msg, level = 'info') {
   while (area.children.length > 400) area.removeChild(area.firstChild);
 }
 
-
-// ═══════════════════════════════════════════════════════════
-// TOAST & BANNER
-// ═══════════════════════════════════════════════════════════
 function toast(msg, type = 'info') {
   const el = document.getElementById('toast');
   el.textContent = msg;

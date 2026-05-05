@@ -1,9 +1,9 @@
 """
 CV-3000 — Backend YunoHost
-Rôle : servir l'interface web statique + stocker/exporter l'historique.
-Le port série est lu DIRECTEMENT par le navigateur via Web Serial API.
+Historique individuel par utilisateur via header Remote-User (SSO YunoHost).
 """
 import os
+import re
 import csv
 import json
 import datetime
@@ -13,26 +13,34 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.wrappers import Response
 
 
-DATA_FILE = os.environ.get(
-    "CV3000_DATA_FILE",
-    os.path.join(os.path.dirname(__file__), "cv3000_mesures.json"),
-)
-
-# Préfixe URL (ex: /cv3000) — défini dans systemd via CV3000_URL_PREFIX
+DATA_DIR   = os.environ.get("CV3000_DATA_DIR",  "/var/lib/cv3000")
 URL_PREFIX = os.environ.get("CV3000_URL_PREFIX", "").rstrip("/")
 
 
-def _load():
+def _username():
+    """Retourne le nom d'utilisateur YunoHost depuis le header SSO, ou 'anonymous'."""
+    user = request.headers.get("Remote-User", "").strip()
+    # Sécurité : n'autoriser que des caractères valides pour un nom de fichier
+    if user and re.match(r'^[a-zA-Z0-9._-]+$', user):
+        return user
+    return "anonymous"
+
+
+def _data_file(username):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    return os.path.join(DATA_DIR, f"mesures_{username}.json")
+
+
+def _load(username):
     try:
-        with open(DATA_FILE, encoding="utf-8") as f:
+        with open(_data_file(username), encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return []
 
 
-def _save(data):
-    os.makedirs(os.path.dirname(os.path.abspath(DATA_FILE)), exist_ok=True)
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
+def _save(username, data):
+    with open(_data_file(username), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
@@ -44,41 +52,52 @@ def create_flask_app():
     )
     app.config["SECRET_KEY"] = os.urandom(24).hex()
 
+    # ── Page principale ──────────────────────────────────────
     @app.route("/")
     def index():
         return render_template("index.html")
 
+    # ── Utilisateur courant ──────────────────────────────────
+    @app.route("/api/me")
+    def me():
+        return jsonify({"user": _username()})
+
+    # ── API historique ───────────────────────────────────────
     @app.route("/api/history", methods=["GET"])
     def get_history():
-        return jsonify({"history": _load()})
+        return jsonify({"history": _load(_username()), "user": _username()})
 
     @app.route("/api/history", methods=["POST"])
     def add_measurement():
         payload = request.get_json(force=True) or {}
-        history = _load()
+        user = _username()
+        history = _load(user)
         history.append(payload)
-        _save(history)
+        _save(user, history)
         return jsonify({"ok": True, "count": len(history)})
 
     @app.route("/api/history/<int:idx>", methods=["DELETE"])
     def delete_measurement(idx):
-        history = _load()
+        user = _username()
+        history = _load(user)
         if 0 <= idx < len(history):
             history.pop(idx)
-            _save(history)
+            _save(user, history)
             return jsonify({"ok": True})
         return jsonify({"ok": False, "msg": "Index hors limites"}), 404
 
     @app.route("/api/history", methods=["DELETE"])
     def clear_history():
-        _save([])
+        _save(_username(), [])
         return jsonify({"ok": True})
 
+    # ── Export CSV ───────────────────────────────────────────
     @app.route("/api/export_csv")
     def export_csv():
-        history = _load()
-        stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        fname = f"/tmp/cv3000_{stamp}.csv"
+        user    = _username()
+        history = _load(user)
+        stamp   = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        fname   = f"/tmp/cv3000_{user}_{stamp}.csv"
         with open(fname, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f, delimiter=";")
             w.writerow([
@@ -92,16 +111,16 @@ def create_flask_app():
                 os_ = m.get("OS") or {}
                 w.writerow([
                     m.get("timestamp", ""),
-                    od.get("sph", ""),  od.get("cyl", ""),  od.get("ax", ""),
-                    od.get("add", ""),  od.get("pd",  ""),
-                    os_.get("sph", ""), os_.get("cyl", ""), os_.get("ax", ""),
-                    os_.get("add", ""), os_.get("pd",  ""),
-                    m.get("format", ""),
+                    od.get("sph",""),  od.get("cyl",""),  od.get("ax",""),
+                    od.get("add",""),  od.get("pd", ""),
+                    os_.get("sph",""), os_.get("cyl",""), os_.get("ax",""),
+                    os_.get("add",""), os_.get("pd", ""),
+                    m.get("format",""),
                 ])
         return send_file(
             fname,
             as_attachment=True,
-            download_name=f"cv3000_{stamp}.csv",
+            download_name=f"cv3000_{user}_{stamp}.csv",
             mimetype="text/csv",
         )
 
@@ -109,10 +128,8 @@ def create_flask_app():
 
 
 def create_app():
-    """Point d'entrée Gunicorn — monte l'app sous URL_PREFIX si défini."""
     flask_app = create_flask_app()
     if URL_PREFIX:
-        # Monte l'app Flask sous /cv3000, répond 404 sur /
         application = DispatcherMiddleware(
             Response("Not Found", status=404),
             {URL_PREFIX: flask_app}

@@ -581,3 +581,32 @@ html, body {
   font-size: 10px;
   color: var(--text-dim);
 }
+
+/* ═══ USER BADGE ════════════════════════════════════════════ */
+.user-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-hi);
+  margin-left: 8px;
+  letter-spacing: .03em;
+  transition: background .3s;
+}
+.user-logged {
+  background: rgba(0,188,212,.1);
+  color: var(--cyan);
+  border-color: rgba(0,188,212,.3);
+}
+.user-anon {
+  background: transparent;
+  color: var(--text-dim);
+}
+
+/* ═══ HIST USER LABEL ═══════════════════════════════════════ */
+.hist-user-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--cyan);
+  opacity: .7;
+}
