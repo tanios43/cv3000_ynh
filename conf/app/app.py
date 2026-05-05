@@ -10,6 +10,7 @@ import json
 import datetime
 
 from flask import Flask, jsonify, request, send_file, render_template
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 DATA_FILE = os.environ.get(
@@ -39,6 +40,12 @@ def create_app():
         static_folder="static",
     )
     app.config["SECRET_KEY"] = os.urandom(24).hex()
+
+    # Indique à Flask que l'app est montée sous /cv3000/
+    # ProxyFix lit les headers X-Forwarded-Prefix envoyés par NGINX
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_prefix=1)
+    app.config["APPLICATION_ROOT"] = "/cv3000"
+    app.config["PREFERRED_URL_SCHEME"] = "https"
 
     # ── Page principale ──────────────────────────────────────
     @app.route("/")
