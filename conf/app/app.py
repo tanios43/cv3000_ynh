@@ -19,7 +19,10 @@ URL_PREFIX = os.environ.get("CV3000_URL_PREFIX", "").rstrip("/")
 
 def _username():
     """Retourne le nom d'utilisateur YunoHost depuis le header SSO, ou 'anonymous'."""
-    user = request.headers.get("Remote-User", "").strip()
+    # YunoHost SSO transmet le nom via $remote_user NGINX → header X-Remote-User
+    user = request.headers.get("X-Remote-User", "").strip()
+    if not user:
+        user = request.headers.get("Remote-User", "").strip()
     # Sécurité : n'autoriser que des caractères valides pour un nom de fichier
     if user and re.match(r'^[a-zA-Z0-9._-]+$', user):
         return user
