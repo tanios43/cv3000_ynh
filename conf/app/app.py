@@ -2,7 +2,6 @@
 CV-3000 — Backend YunoHost
 Rôle : servir l'interface web statique + stocker/exporter l'historique.
 Le port série est lu DIRECTEMENT par le navigateur via Web Serial API.
-Aucune dépendance pyserial côté serveur.
 """
 import os
 import csv
@@ -10,13 +9,17 @@ import json
 import datetime
 
 from flask import Flask, jsonify, request, send_file, render_template
-from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.wrappers import Response
 
 
 DATA_FILE = os.environ.get(
     "CV3000_DATA_FILE",
     os.path.join(os.path.dirname(__file__), "cv3000_mesures.json"),
 )
+
+# Préfixe URL (ex: /cv3000) — défini dans systemd via CV3000_URL_PREFIX
+URL_PREFIX = os.environ.get("CV3000_URL_PREFIX", "").rstrip("/")
 
 
 def _load():
@@ -33,7 +36,7 @@ def _save(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def create_app():
+def create_flask_app():
     app = Flask(
         __name__,
         template_folder="templates",
@@ -41,18 +44,10 @@ def create_app():
     )
     app.config["SECRET_KEY"] = os.urandom(24).hex()
 
-    # Indique à Flask que l'app est montée sous /cv3000/
-    # ProxyFix lit les headers X-Forwarded-Prefix envoyés par NGINX
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_prefix=1)
-    app.config["APPLICATION_ROOT"] = "/cv3000"
-    app.config["PREFERRED_URL_SCHEME"] = "https"
-
-    # ── Page principale ──────────────────────────────────────
     @app.route("/")
     def index():
         return render_template("index.html")
 
-    # ── API historique ───────────────────────────────────────
     @app.route("/api/history", methods=["GET"])
     def get_history():
         return jsonify({"history": _load()})
@@ -79,7 +74,6 @@ def create_app():
         _save([])
         return jsonify({"ok": True})
 
-    # ── Export CSV ───────────────────────────────────────────
     @app.route("/api/export_csv")
     def export_csv():
         history = _load()
@@ -114,5 +108,19 @@ def create_app():
     return app
 
 
+def create_app():
+    """Point d'entrée Gunicorn — monte l'app sous URL_PREFIX si défini."""
+    flask_app = create_flask_app()
+    if URL_PREFIX:
+        # Monte l'app Flask sous /cv3000, répond 404 sur /
+        application = DispatcherMiddleware(
+            Response("Not Found", status=404),
+            {URL_PREFIX: flask_app}
+        )
+        return application
+    return flask_app
+
+
 if __name__ == "__main__":
-    create_app().run(host="127.0.0.1", port=6500, debug=True)
+    from werkzeug.serving import run_simple
+    run_simple("127.0.0.1", 6500, create_app(), use_reloader=True)

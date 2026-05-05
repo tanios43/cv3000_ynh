@@ -9,6 +9,7 @@ Group=__APP__
 WorkingDirectory=__INSTALL_DIR__
 Environment="PATH=__INSTALL_DIR__/venv/bin"
 Environment="CV3000_DATA_FILE=__DATA_DIR__/mesures.json"
+Environment="CV3000_URL_PREFIX=__PATH__"
 
 ExecStart=__INSTALL_DIR__/venv/bin/gunicorn \
     -w 2 \
