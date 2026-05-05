@@ -1,0 +1,24 @@
+#!/bin/bash
+source _common.sh
+source /usr/share/yunohost/helpers
+
+ynh_script_progression --message="Restoring..." --weight=2
+
+ynh_restore_file --origin_path="$install_dir"
+ynh_restore_file --origin_path="$data_dir"
+chown -R "$app:$app" "$install_dir" "$data_dir"
+
+# Recréer le venv si absent (migration serveur)
+if [ ! -f "$install_dir/venv/bin/python3" ]; then
+    python3 -m venv "$install_dir/venv"
+    "$install_dir/venv/bin/pip" install flask gunicorn --quiet
+fi
+
+yunohost service add "$app" \
+    --description="CV-3000 web interface (Web Serial)" \
+    --log="/var/log/$app/$app.log"
+
+systemctl enable "$app" --quiet
+ynh_systemd_action --service_name="$app" --action="start"
+
+ynh_script_progression --message="Restore complete!" --last

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CV-3000 Interface</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- Toast global -->
+<div id="toast" class="toast"></div>
+
+<!-- Bannière compatibilité -->
+<div id="compat-banner" class="compat-banner" style="display:none"></div>
+
+<!-- ═══ HEADER ═══ -->
+<header class="header">
+  <div class="header-left">
+    <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-dasharray="4 2"/>
+      <line x1="2" y1="12" x2="6" y2="12"/>
+      <line x1="18" y1="12" x2="22" y2="12"/>
+      <line x1="12" y1="2" x2="12" y2="6"/>
+      <line x1="12" y1="18" x2="12" y2="22"/>
+    </svg>
+    <div>
+      <div class="header-title">Topcon CV-3000</div>
+      <div class="header-sub">Interface de réfraction</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="status-dot dot-off" id="status-dot"></span>
+    <span class="status-badge" id="status-badge">Déconnecté</span>
+  </div>
+</header>
+
+<!-- ═══ LAYOUT ═══ -->
+<div class="layout">
+
+  <!-- ── Colonne principale ── -->
+  <main class="col-main">
+
+    <!-- CONNEXION -->
+    <section class="card">
+      <div class="card-head">
+        <span class="card-label">LIAISON SÉRIE</span>
+        <div class="card-head-right">
+          <label class="field-label" for="baud-select">Baud rate</label>
+          <select id="baud-select" class="select-field">
+            <option>1200</option>
+            <option>2400</option>
+            <option>4800</option>
+            <option selected>9600</option>
+            <option>19200</option>
+            <option>38400</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body">
+        <button class="btn-connect" id="btn-connect">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+            <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.001z"/>
+          </svg>
+          Connecter le port série
+        </button>
+        <p class="hint-text">
+          Cliquez pour ouvrir le sélecteur de port natif du navigateur.
+          Le CV-3000 doit être branché via RS-232 ou adaptateur USB-série sur ce poste.
+          <strong>Chrome ou Edge requis.</strong>
+        </p>
+      </div>
+    </section>
+
+    <!-- DONNÉES RÉFRACTION -->
+    <section class="card card-refraction">
+      <div class="card-head">
+        <span class="card-label">DONNÉES DE RÉFRACTION</span>
+        <span class="ts-label" id="ts-label">En attente de mesure</span>
+      </div>
+      <div class="card-body">
+        <div class="eyes-grid">
+
+          <!-- OD -->
+          <div class="eye-panel" id="panel-od">
+            <div class="eye-header eye-od-header">
+              <span class="eye-tag">OD</span>
+              <span class="eye-name">Œil droit</span>
+            </div>
+            <div class="eye-fields">
+              <div class="eye-row">
+                <span class="eye-field-label">Sphère</span>
+                <span class="eye-field-val" id="od-sph">—</span>
+              </div>
+              <div class="eye-row">
+                <span class="eye-field-label">Cylindre</span>
+                <span class="eye-field-val" id="od-cyl">—</span>
+              </div>
+              <div class="eye-row">
+                <span class="eye-field-label">Axe</span>
+                <span class="eye-field-val" id="od-ax">—</span>
+              </div>
+              <div class="eye-row">
+                <span class="eye-field-label">Addition</span>
+                <span class="eye-field-val" id="od-add">—</span>
+              </div>
+              <div class="eye-row">
+                <span class="eye-field-label">PD</span>
+                <span class="eye-field-val" id="od-pd">—</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- OS -->
+          <div class="eye-panel" id="panel-os">
+            <div class="eye-header eye-os-header">
+              <span class="eye-tag">OS</span>
+              <span class="eye-name">Œil gauche</span>
+            </div>
+            <div class="eye-fields">
+              <div class="eye-row">
+                <span class="eye-field-label">Sphère</span>
+                <span class="eye-field-val" id="os-sph">—</span>
+              </div>
+              <div class="eye-row">
+                <span class="eye-field-label">Cylindre</span>
+                <span class="eye-field-val" id="os-cyl">—</span>
+              </div>
+              <div class="eye-row">
+                <span class="eye-field-label">Axe</span>
+                <span class="eye-field-val" id="os-ax">—</span>
+              </div>
+              <div class="eye-row">
+                <span class="eye-field-label">Addition</span>
+                <span class="eye-field-val" id="os-add">—</span>
+              </div>
+              <div class="eye-row">
+                <span class="eye-field-label">PD</span>
+                <span class="eye-field-val" id="os-pd">—</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Prescription -->
+        <div class="presc-box">
+          <span class="presc-label">Prescription</span>
+          <div class="presc-text" id="prescription-text">—</div>
+        </div>
+
+        <!-- Actions -->
+        <div class="action-row">
+          <button class="btn btn-primary" id="btn-copy">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M4 2a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V2zm2-1a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V2a1 1 0 00-1-1H6z"/><path d="M2 5a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-1h-1v1H2V6h1V5H2z"/></svg>
+            Copier
+          </button>
+          <button class="btn btn-success" id="btn-save">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M2 1a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4.5L10.5 0H2zm0 1h8.5L13 4.5V14H2V2zm5.5 5.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>
+            Enregistrer
+          </button>
+          <button class="btn btn-ghost" id="btn-clear">Effacer</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ENVOI -->
+    <section class="card">
+      <div class="card-head">
+        <span class="card-label">ENVOYER VERS CV-3000 <span class="tag-badge">émulation KR/RM</span></span>
+      </div>
+      <div class="card-body">
+        <p class="hint-text">
+          Le PC émule un autoréfractomètre KR/RM (format STD1).
+          Le CV-3000 doit être en attente de données RM/CL.
+        </p>
+
+        <div class="rx-block">
+          <div class="rx-formats">
+            Formats : <code>-2.25(-0.75)180 / -1.75(-1.00)10</code>
+            · <code>-1 -1.50 90 / +0.5 -0.75 30</code>
+            · <code>-1.25 / -0.75</code>
+            · <code>… Add+2.00 / …</code>
+          </div>
+          <div class="rx-input-row">
+            <input type="text" id="rx-input" class="rx-input"
+                   placeholder="-2.25(-0.75)180 / -1.75(-1.00)10"
+                   spellcheck="false" autocomplete="off">
+            <button class="btn btn-ghost btn-sm" id="btn-prefill">← Dernière mesure</button>
+          </div>
+          <div id="rx-preview" class="rx-preview"></div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-send" id="btn-send">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M15.854.146a.5.5 0 010 .708L3.707 13H6.5a.5.5 0 010 1h-4a.5.5 0 01-.5-.5v-4a.5.5 0 011 0v2.793L14.146.146a.5.5 0 01.708 0z"/></svg>
+            Envoyer au CV-3000
+          </button>
+          <span id="send-status"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- JOURNAL -->
+    <section class="card card-log">
+      <div class="card-head">
+        <span class="card-label">JOURNAL</span>
+        <button class="btn-log-clear" onclick="document.getElementById('log-area').innerHTML=''">
+          Vider
+        </button>
+      </div>
+      <div id="log-area" class="log-area"></div>
+    </section>
+
+  </main>
+
+  <!-- ── Historique ── -->
+  <aside class="col-aside">
+    <div class="card card-history">
+      <div class="card-head">
+        <span class="card-label">HISTORIQUE</span>
+        <span id="hist-count" class="hist-count"></span>
+      </div>
+      <ul id="history-list" class="history-list"></ul>
+      <div class="hist-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-export-csv">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M.5 9.9a.5.5 0 01.5.5v2.5a1 1 0 001 1h12a1 1 0 001-1v-2.5a.5.5 0 011 0v2.5a2 2 0 01-2 2H2a2 2 0 01-2-2v-2.5a.5.5 0 01.5-.5z"/><path d="M7.646 11.854a.5.5 0 00.708 0l3-3a.5.5 0 00-.708-.708L8.5 10.293V1.5a.5.5 0 00-1 0v8.793L5.354 8.146a.5.5 0 10-.708.708l3 3z"/></svg>
+          Export CSV
+        </button>
+        <button class="btn btn-danger btn-sm" id="btn-clear-history">Vider</button>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

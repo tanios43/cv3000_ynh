@@ -1,0 +1,25 @@
+[Unit]
+Description=CV-3000 Web Interface
+After=network.target
+
+[Service]
+Type=simple
+User=__APP__
+Group=__APP__
+WorkingDirectory=__INSTALL_DIR__
+Environment="PATH=__INSTALL_DIR__/venv/bin"
+Environment="CV3000_DATA_FILE=__DATA_DIR__/mesures.json"
+
+ExecStart=__INSTALL_DIR__/venv/bin/gunicorn \
+    -w 2 \
+    --bind 127.0.0.1:__PORT__ \
+    --log-file /var/log/__APP__/__APP__.log \
+    --log-level info \
+    --access-logfile /var/log/__APP__/access.log \
+    "app:create_app()"
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

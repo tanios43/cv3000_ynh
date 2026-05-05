@@ -1,0 +1,10 @@
+#!/bin/bash
+source _common.sh
+source /usr/share/yunohost/helpers
+
+ynh_script_progression --message="Backing up..." --weight=1
+
+ynh_backup --src_path="$install_dir"
+ynh_backup --src_path="$data_dir"   # contient mesures.json
+
+ynh_script_progression --message="Backup complete!" --last

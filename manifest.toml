@@ -1,0 +1,59 @@
+packaging_format = 2
+
+id = "cv3000"
+name = "CV-3000 Interface"
+description.en = "Web interface for Topcon CV-3000 refractometer — serial port read directly by the browser via Web Serial API (Chrome/Edge)"
+description.fr = "Interface web pour le réfracteur Topcon CV-3000 — port série lu directement par le navigateur via Web Serial API (Chrome/Edge)"
+
+version = "1.0~ynh1"
+
+maintainers = ["votre_nom"]
+
+[upstream]
+license = "AGPL-3.0-only"
+website = ""
+code = ""
+
+[integration]
+yunohost = ">= 11.2"
+architectures = "all"
+multi_instance = false
+ldap = false
+sso = false
+disk = "30M"
+ram.build = "64M"
+ram.runtime = "32M"
+
+[install]
+
+    [install.domain]
+    type = "domain"
+
+    [install.path]
+    type = "path"
+    default = "/cv3000"
+
+    [install.init_main_permission]
+    type = "group"
+    default = "admins"
+
+[resources]
+
+    [resources.system_user]
+
+    [resources.install_dir]
+    # Par défaut : /var/www/cv3000
+
+    [resources.data_dir]
+    # Par défaut : /home/yunohost.app/cv3000
+    # Utilisé pour stocker cv3000_mesures.json
+
+    [resources.permissions]
+    main.url = "/"
+
+    [resources.ports]
+    main.default = 6500
+
+    [resources.apt]
+    packages = "python3, python3-pip, python3-venv"
+    # Note : pas de pyserial côté serveur — le port série est lu par le navigateur

@@ -1,0 +1,24 @@
+#!/bin/bash
+source _common.sh
+source /usr/share/yunohost/helpers
+
+ynh_script_progression --message="Stopping service..." --weight=1
+ynh_systemd_action --service_name="$app" --action="stop"
+
+ynh_script_progression --message="Upgrading Python dependencies..." --weight=2
+"$install_dir/venv/bin/pip" install --upgrade flask gunicorn --quiet
+
+ynh_script_progression --message="Updating application files..." --weight=1
+cp -r "$YNH_APP_BASEDIR/conf/app/"* "$install_dir/"
+chown -R "$app:$app" "$install_dir"
+
+ynh_add_nginx_config
+ynh_add_systemd_config
+
+ynh_script_progression --message="Restarting service..." --weight=1
+ynh_systemd_action \
+    --service_name="$app" \
+    --action="start" \
+    --log_path="/var/log/$app/$app.log"
+
+ynh_script_progression --message="Upgrade complete!" --last

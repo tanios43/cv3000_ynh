@@ -1,0 +1,59 @@
+#!/bin/bash
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# INSTALL PYTHON DEPENDENCIES
+#=================================================
+ynh_script_progression --message="Installing Python dependencies..." --weight=3
+
+python3 -m venv "$install_dir/venv"
+"$install_dir/venv/bin/pip" install --upgrade pip --quiet
+"$install_dir/venv/bin/pip" install flask gunicorn --quiet
+
+#=================================================
+# COPY APP FILES
+#=================================================
+ynh_script_progression --message="Copying application files..." --weight=1
+
+cp -r "$YNH_APP_BASEDIR/conf/app/"* "$install_dir/"
+chown -R "$app:$app" "$install_dir"
+
+#=================================================
+# DATA DIRECTORY
+#=================================================
+# Créé automatiquement par resources.data_dir
+chown -R "$app:$app" "$data_dir"
+
+#=================================================
+# LOG DIRECTORY
+#=================================================
+mkdir -p "/var/log/$app"
+chown -R "$app:www-data" "/var/log/$app"
+
+#=================================================
+# NGINX + SYSTEMD
+#=================================================
+ynh_script_progression --message="Configuring NGINX and systemd..." --weight=1
+
+ynh_add_nginx_config
+ynh_add_systemd_config
+
+yunohost service add "$app" \
+    --description="CV-3000 web interface (Web Serial)" \
+    --log="/var/log/$app/$app.log"
+
+#=================================================
+# START SERVICE
+#=================================================
+ynh_script_progression --message="Starting service..." --weight=1
+
+ynh_systemd_action \
+    --service_name="$app" \
+    --action="start" \
+    --log_path="/var/log/$app/$app.log"
+
+#=================================================
+# DONE
+#=================================================
+ynh_script_progression --message="Installation complete!" --last
