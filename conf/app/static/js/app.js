@@ -8,6 +8,9 @@ import {
   buildRmStd1Frame,
 } from './serial.js';
 
+// ── Préfixe URL (ex: /cv3000) injecté par Flask dans le HTML ──
+const PREFIX = document.querySelector('meta[name="app-prefix"]')?.content || '';
+
 // ── Parseur RX côté UI (saisie manuelle) ─────────────────────
 function parseRxString(text) {
   text = text.trim().replace(/,/g, '.').replace(/°|deg/g, '');
@@ -47,7 +50,7 @@ function parseRxString(text) {
 // ═══════════════════════════════════════════════════════════
 // ÉTAT GLOBAL
 // ═══════════════════════════════════════════════════════════
-let currentData     = null;   // dernière mesure reçue/sélectionnée
+let currentData     = null;
 let history         = [];
 let selectedHistIdx = -1;
 let baudRate        = 2400;
@@ -96,16 +99,14 @@ async function toggleConnection() {
 }
 
 function updateConnectionState(connected) {
-  const btn    = document.getElementById('btn-connect');
-  const badge  = document.getElementById('status-badge');
-  const dot    = document.getElementById('status-dot');
+  const btn   = document.getElementById('btn-connect');
+  const badge = document.getElementById('status-badge');
+  const dot   = document.getElementById('status-dot');
 
-  btn.textContent  = connected ? 'Déconnecter' : 'Connecter le port série';
+  btn.textContent       = connected ? 'Déconnecter' : 'Connecter le port série';
   btn.dataset.connected = connected ? '1' : '';
 
-  badge.textContent = connected
-    ? `Connecté · ${baudRate} bauds`
-    : 'Déconnecté';
+  badge.textContent = connected ? `Connecté · ${baudRate} bauds` : 'Déconnecté';
   dot.className = 'status-dot ' + (connected ? 'dot-on' : 'dot-off');
 }
 
@@ -119,7 +120,6 @@ function handleMeasurement(parsed) {
   document.getElementById('ts-label').textContent =
     `Dernière mesure : ${parsed.timestamp} [${parsed.format}]`;
   log(`✓ Mesure reçue à ${parsed.timestamp} [${parsed.format}]`, 'data');
-  // Mettre à jour le champ d'envoi si vide
   const entry = document.getElementById('rx-input');
   if (!entry.value.trim()) {
     entry.value = buildCopyString(parsed.OD, parsed.OS);
@@ -130,9 +130,8 @@ function handleMeasurement(parsed) {
 function renderEyes(od, os) {
   fillEye('od', od);
   fillEye('os', os);
-  const presc = buildCopyString(od ?? {}, os ?? {});
-  document.getElementById('prescription-text').textContent = presc;
-  // Animation flash sur les panneaux
+  document.getElementById('prescription-text').textContent =
+    buildCopyString(od ?? {}, os ?? {});
   ['panel-od', 'panel-os'].forEach(id => {
     const el = document.getElementById(id);
     el.classList.remove('flash');
@@ -188,7 +187,7 @@ async function copyPrescription() {
 // ═══════════════════════════════════════════════════════════
 async function loadHistory() {
   try {
-    const r = await fetch('/api/history').then(r => r.json());
+    const r = await fetch(PREFIX + '/api/history').then(r => r.json());
     history = r.history ?? [];
     renderHistory();
   } catch {}
@@ -238,7 +237,7 @@ function selectHistory(idx) {
 async function saveMeasurement() {
   if (!currentData) { toast('Aucune mesure à enregistrer'); return; }
   try {
-    await fetch('/api/history', {
+    await fetch(PREFIX + '/api/history', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(currentData),
@@ -246,25 +245,25 @@ async function saveMeasurement() {
     await loadHistory();
     toast('Mesure enregistrée', 'ok');
     log(`✓ Mesure enregistrée (${currentData.timestamp ?? ''})`, 'ok');
-  } catch (e) { toast('Erreur sauvegarde', 'err'); }
+  } catch { toast('Erreur sauvegarde', 'err'); }
 }
 
 async function deleteHistoryItem(idx) {
-  await fetch(`/api/history/${idx}`, { method: 'DELETE' });
+  await fetch(PREFIX + `/api/history/${idx}`, { method: 'DELETE' });
   if (selectedHistIdx === idx) selectedHistIdx = -1;
   await loadHistory();
 }
 
 async function clearHistory() {
   if (!confirm('Vider tout l\'historique ?')) return;
-  await fetch('/api/history', { method: 'DELETE' });
+  await fetch(PREFIX + '/api/history', { method: 'DELETE' });
   history = []; selectedHistIdx = -1;
   renderHistory();
   toast('Historique vidé');
 }
 
 function exportCSV() {
-  window.location = '/api/export_csv';
+  window.location = PREFIX + '/api/export_csv';
   log('✓ Export CSV lancé', 'ok');
 }
 
@@ -278,9 +277,7 @@ function liveParseRx() {
   if (!txt) { preview.textContent = ''; preview.className = 'rx-preview'; return; }
   try {
     const { od, os } = parseRxString(txt);
-    const odStr = fmtPrescription(od) ?? '?';
-    const osStr = fmtPrescription(os) ?? '?';
-    preview.textContent = `✓  OD : ${odStr}   |   OS : ${osStr}`;
+    preview.textContent = `✓  OD : ${fmtPrescription(od) ?? '?'}   |   OS : ${fmtPrescription(os) ?? '?'}`;
     preview.className = 'rx-preview rx-ok';
   } catch (e) {
     preview.textContent = `✗  ${e.message.split('\n')[0]}`;
@@ -309,8 +306,7 @@ async function sendToCV3000() {
   }
 
   try {
-    const frame = buildRmStd1Frame(od, os);
-    await serial.send(frame);
+    await serial.send(buildRmStd1Frame(od, os));
     statusEl.textContent = '✓ Données envoyées !';
     statusEl.className = 'send-ok';
     toast('Envoyé au CV-3000', 'ok');
@@ -344,13 +340,12 @@ function log(msg, level = 'info') {
   div.textContent = `${ts}  ${msg}`;
   area.appendChild(div);
   area.scrollTop = area.scrollHeight;
-  // Limiter à 400 lignes
   while (area.children.length > 400) area.removeChild(area.firstChild);
 }
 
 
 // ═══════════════════════════════════════════════════════════
-// TOAST
+// TOAST & BANNER
 // ═══════════════════════════════════════════════════════════
 function toast(msg, type = 'info') {
   const el = document.getElementById('toast');
@@ -390,7 +385,6 @@ function bindAll() {
     localStorage.setItem('cv3000_baud', baudRate);
   });
 
-  // Restaurer baud rate sauvegardé
   const savedBaud = localStorage.getItem('cv3000_baud');
   if (savedBaud) {
     document.getElementById('baud-select').value = savedBaud;
